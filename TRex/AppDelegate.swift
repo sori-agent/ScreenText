@@ -27,6 +27,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1 {
             NSWorkspace.shared.open(URL(string: "screentext://showPreferences")!)
             NSApp.terminate(nil)
+            return
+        }
+
+        if let projectDirectory = preferences.localOCRProjectDirectory {
+            do {
+                try LocalOCRServer.shared.start(projectDirectory: projectDirectory)
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "The local OCR server could not start"
+                alert.informativeText = "Run Start ScreenText.command from the ScreenText folder to check the installation."
+                alert.runModal()
+                NSApp.terminate(nil)
+                return
+            }
         }
         
         #if !MAC_APP_STORE
@@ -56,6 +70,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         #endif
 
         showOnboardingIfNeeded()
+    }
+
+    /// Quitting the menu bar app also releases its local model's RAM.
+    func applicationWillTerminate(_: Notification) {
+        LocalOCRServer.shared.stop()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

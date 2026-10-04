@@ -5,6 +5,7 @@ import asyncio
 import base64
 import binascii
 import io
+import os
 import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
@@ -50,7 +51,7 @@ def create_app(recognize: Recognizer, model_id: str) -> FastAPI:
 
     @app.get("/health")
     def health():
-        return {"ready": True, "model": model_id}
+        return {"ready": True, "model": model_id, "pid": os.getpid()}
 
     @app.post("/v1/chat/completions")
     async def ocr(request: ChatRequest):
@@ -135,8 +136,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default="PaddlePaddle/PaddleOCR-VL-1.6")
     parser.add_argument("--port", type=int, default=18871)
+    parser.add_argument("--parent-pid", type=int)
     parser.add_argument("--detector", type=Path, default=Path(__file__).resolve().parents[2] / ".local/detect-lines")
     args = parser.parse_args()
+    if args.parent_pid is not None:
+        from parent_lifetime import watch_parent
+        watch_parent(args.parent_pid)
     # Keep model loading and generation on the same Metal worker thread.
     with ThreadPoolExecutor(max_workers=1) as worker:
         inference = worker.submit(load_recognizer, args.model, args.detector).result()

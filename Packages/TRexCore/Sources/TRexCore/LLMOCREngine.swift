@@ -60,6 +60,7 @@ public final class LLMOCREngine: @unchecked Sendable, OCREngine {
         }
 
         do {
+            try await LocalOCRServer.shared.waitUntilReady(for: config.ocrCustomEndpoint)
             // Convert CGImage to NSImage
             let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
 

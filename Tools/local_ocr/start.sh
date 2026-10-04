@@ -2,8 +2,6 @@
 set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 APP_PATH="$PROJECT_DIR/.local/DerivedData/Build/Products/Debug/ScreenText.app"
-SERVER_PATH="$PROJECT_DIR/Tools/local_ocr/server.py"
-PID_FILE="$PROJECT_DIR/.local/server.pid"
 MODEL="PaddlePaddle/PaddleOCR-VL-1.6"
 PREFS="com.sori.ScreenText.preferences"
 cd "$PROJECT_DIR"
@@ -38,34 +36,12 @@ defaults write "$PREFS" LLMOCRCustomEndpoint -string http://127.0.0.1:18871/v1
 defaults write "$PREFS" LLMOCRModel -string "$MODEL"
 defaults write "$PREFS" LLMOCRPrompt -string 'OCR:'
 defaults write "$PREFS" LLMOCRAPIKey -string ''
+defaults write "$PREFS" LocalOCRProjectDirectory -string "$PROJECT_DIR"
 
-if [[ -f "$PID_FILE" ]]; then
-    SERVER_PID="$(cat "$PID_FILE")"
-    SERVER_COMMAND="$(ps -p "$SERVER_PID" -o command= 2>/dev/null || true)"
-else
-    SERVER_COMMAND=""
-fi
-if [[ "$SERVER_COMMAND" != *"$SERVER_PATH"* ]]; then
-    if curl --silent --fail http://127.0.0.1:18871/health >/dev/null; then
-        echo "Port 18871 is already in use. Stop the other service first." >&2; exit 1
-    fi
-    "$PROJECT_DIR/.venv/bin/python" - "$PROJECT_DIR" "$MODEL" <<'PY'
-import os
-import subprocess
-import sys
-from pathlib import Path
-root, model = Path(sys.argv[1]), sys.argv[2]
-environment = dict(os.environ, HF_HUB_OFFLINE="1", HF_HOME=str(root / ".local/huggingface"))
-with (root / ".local/server.log").open("w") as log:
-    process = subprocess.Popen([str(root / ".venv/bin/python"), str(root / "Tools/local_ocr/server.py"),
-        "--model", model], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-        env=environment, start_new_session=True)
-(root / ".local/server.pid").write_text(str(process.pid))
-PY
-fi
+# The app owns the server process; the launcher only configures and opens it.
+open "$APP_PATH"
 for attempt in {1..30}; do
     if curl --silent --fail http://127.0.0.1:18871/health >/dev/null; then
-        open "$APP_PATH"
         echo "ScreenText is running. Press Command-Shift-2, drag a rectangle, and release to copy text."
         exit 0
     fi

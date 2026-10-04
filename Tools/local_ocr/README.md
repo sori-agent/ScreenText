@@ -23,7 +23,7 @@ The launcher selects the local endpoint at `127.0.0.1:18871`, disables capture h
 Tools/local_ocr/stop.sh
 ```
 
-Quit the menu bar app separately. The server is started by the launcher; no login service is installed. Starting again restarts this checkout's GUI to apply the launcher's configuration.
+ScreenText starts the model as its own child process when the app opens. Choose **Quit ScreenText** to stop both the app and model and release their RAM. A force quit or crash also stops the model. Keeping the app in the menu bar keeps the model loaded; opening it again reloads the model, and an early capture waits for startup. No login service is installed. Starting the launcher again restarts this checkout's GUI to apply its configuration. `stop.sh` remains an emergency way to stop just the server.
 
 ## Output and limits
 
@@ -38,9 +38,10 @@ The local server accepts PNG/JPEG bytes, never fetches image URLs, binds only to
 ## Focused checks
 
 ```sh
-(cd Tools/local_ocr && ../../.venv/bin/python -m unittest test_server test_layout)
+(cd Tools/local_ocr && ../../.venv/bin/python -m unittest test_server test_layout test_parent_lifetime)
 (cd Packages/TRexLLM && swift test --jobs 2 --filter UnifiedLanguageModelProviderTests)
 (cd Packages/TRexCore && swift test --jobs 2 --filter LocalOCRFailureTests)
+(cd Packages/TRexCore && swift test --jobs 1 --filter LocalOCRServerTests)
 ```
 
 `LocalOCRIntegrationTests` runs the configured model through the clipboard pipeline when `SCREENTEXT_TEST_IMAGE` and `SCREENTEXT_TEST_EXPECTED` point to private local files. It skips otherwise. The test replaces the clipboard with the recognized text.

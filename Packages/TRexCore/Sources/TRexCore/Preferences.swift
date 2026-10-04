@@ -48,6 +48,15 @@ public class Preferences: ObservableObject {
         case WatchModePollingInterval
         case WatchModeDefaultOutputMode
         case FreezeScreenDuringSelection
+        case LocalOCRProjectDirectory
+    }
+
+    /// The launcher records where this installation's offline OCR runtime lives.
+    public var localOCRProjectDirectory: URL? {
+        guard let path = Self.getValue(key: .LocalOCRProjectDirectory) as? String, !path.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: path, isDirectory: true)
     }
 
     public enum MenuBarIcon: String, CaseIterable {
