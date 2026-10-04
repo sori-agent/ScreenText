@@ -1033,7 +1033,7 @@ public class TRex: NSObject {
                 printLine: { print($0) },
                 playReadySound: {
                     guard self.preferences.captureSound else { return }
-                    if NSSound(named: NSSound.Name("Pop"))?.play() != true {
+                    if NSSound(named: NSSound.Name("Glass"))?.play() != true {
                         self.logger.warning("Failed to play clipboard-ready sound")
                     }
                 }
