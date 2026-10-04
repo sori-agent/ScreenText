@@ -27,10 +27,10 @@ while read -r APP_PID; do
 done < <(pgrep -x ScreenText || true)
 
 # Configure only this fork's preferences; upstream TRex has a different suite.
-for key in LLMEnabled LLMEnableOCR FreezeScreenDuringSelection; do
+for key in LLMEnabled LLMEnableOCR; do
     defaults write "$PREFS" "$key" -bool true
 done
-for key in NeedsOnboarding LLMFallbackToBuiltIn LLMEnablePostProcessing CaptureHistoryEnabled TableDetectionEnabled IgnoreLineBreaks AutomaticLanguageDetection TesseractEnabled; do
+for key in NeedsOnboarding FreezeScreenDuringSelection LLMFallbackToBuiltIn LLMEnablePostProcessing CaptureHistoryEnabled TableDetectionEnabled IgnoreLineBreaks AutomaticLanguageDetection TesseractEnabled; do
     defaults write "$PREFS" "$key" -bool false
 done
 defaults write "$PREFS" LLMOCRProvider -string Custom
@@ -66,7 +66,7 @@ fi
 for attempt in {1..30}; do
     if curl --silent --fail http://127.0.0.1:18871/health >/dev/null; then
         open "$APP_PATH"
-        echo "ScreenText is running. Press Command-Shift-2, adjust the rectangle, then choose Copy Text."
+        echo "ScreenText is running. Press Command-Shift-2, drag a rectangle, and release to copy text."
         exit 0
     fi
     sleep 1

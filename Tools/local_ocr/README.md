@@ -11,13 +11,13 @@ Tools/local_ocr/setup.sh
 Tools/local_ocr/start.sh
 ```
 
-Setup downloads approximately 2 GB of model weights and builds an ad-hoc signed app. After setup, inference runs offline. On this checkout you can double-click `Start ScreenText.command` to start it again.
+Setup downloads approximately 2 GB of model weights and builds the app. It uses this Mac's sole Apple Development certificate when available, or ad-hoc signing otherwise. Set `SCREENTEXT_SIGNING_IDENTITY` to select a specific certificate. After setup, inference runs offline. On this checkout you can double-click `Start ScreenText.command` to start it again.
 
-Allow **ScreenText** in macOS **System Settings → Privacy & Security → Screen & System Audio Recording**. Press **⌘⇧2**, move or resize the selection rectangle, click **Copy Text** (or press Return), then paste. Escape cancels. The launcher skips the upstream introduction; some settings still use the TRex name. ScreenText has its own app identity and preferences.
+Allow **ScreenText** in macOS **System Settings → Privacy & Security → Screen & System Audio Recording**. Press **⌘⇧2**, click to anchor one corner, drag to the opposite corner, and release to copy the region's text. Then paste. Escape cancels. The launcher skips the upstream introduction; some settings still use the TRex name. ScreenText has its own app identity and preferences.
 
-Rebuilding an ad-hoc signed app can invalidate its Screen Recording permission. If capture stops after a rebuild, switch ScreenText off and back on in that settings page, then choose Quit & Reopen if prompted.
+Rebuilding an ad-hoc signed app can leave a stale Screen Recording entry that looks enabled. To replace that entry, run `tccutil reset ScreenCapture com.sori.ScreenText`, start the app, and grant ScreenText access again. This resets only ScreenText's screen permission. A stable Apple Development signature keeps the app identity consistent across rebuilds.
 
-The launcher selects the local endpoint at `127.0.0.1:18871`, disables capture history, disables model post-processing, preserves line breaks, and enables frozen selection. The GUI uses a normal preferences suite so the launcher can configure the ad-hoc build without an Apple developer app group.
+The launcher selects the local endpoint at `127.0.0.1:18871`, disables capture history and model post-processing, preserves line breaks, and uses macOS's native region picker. The GUI uses a normal preferences suite so the launcher can configure the local build without an Apple developer app group.
 
 ```sh
 Tools/local_ocr/stop.sh
@@ -33,7 +33,7 @@ The supplied subtitle sample matched exactly in local runs. The dense photograph
 
 An unavailable server or exhausted token limit leaves the clipboard unchanged. Recognized text can still be wrong without triggering either condition. No calibrated confidence score is available.
 
-The local server accepts PNG/JPEG bytes, never fetches image URLs, binds only to loopback, and keeps request images in memory. With the launcher's frozen selection and history-disabled settings, GUI captures are not saved as screenshot files. Upstream history and remote-provider controls still exist; enabling them changes those guarantees. The upstream CLI is outside this trial.
+The local server accepts PNG/JPEG bytes, never fetches image URLs, binds only to loopback, and keeps request images in memory. The native picker creates a temporary screenshot; the GUI loads it and immediately deletes that file before OCR starts. Capture history is disabled. Upstream history and remote-provider controls still exist; enabling them changes those guarantees. The upstream CLI is outside this trial.
 
 ## Focused checks
 

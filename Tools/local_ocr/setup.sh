@@ -24,4 +24,5 @@ xcodebuild -project TRex.xcodeproj -scheme TRex -configuration Debug \
     tail -60 .local/app-build.log >&2
     exit 1
 }
+.venv/bin/python Tools/local_ocr/sign_app.py
 echo "Built ScreenText. Run Tools/local_ocr/start.sh."

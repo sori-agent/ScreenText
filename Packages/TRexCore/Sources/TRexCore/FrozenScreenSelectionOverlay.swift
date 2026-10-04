@@ -3,8 +3,10 @@ import CoreGraphics
 import OSLog
 import ScreenCaptureKit
 
-/// Shows an adjustable selection over a frozen display snapshot. The user moves or resizes
-/// the rectangle, then confirms; only its cropped pixels reach OCR.
+/// Shows a "frozen" snapshot of every connected display as a full-screen overlay and lets the
+/// user drag-select a region from the still image. Useful when the underlying content is moving
+/// (video, animation, hover galleries) and the standard interactive selection would chase the
+/// content as it changes.
 @MainActor
 public enum FrozenScreenSelectionOverlay {
     /// Returns the cropped pixel image of the user's selection, or nil if cancelled / failed.
@@ -73,7 +75,6 @@ private final class SelectionCoordinator {
             window.makeKeyAndOrderFront(nil)
         }
         preferred?.makeKeyAndOrderFront(nil)
-        preferred?.beginSelection()
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -83,11 +84,6 @@ private final class SelectionCoordinator {
             }
             return event
         }
-    }
-
-    /// Only one display owns the active rectangle at a time.
-    func activateSelection(in view: SelectionView) {
-        for window in windows { window.clearSelection(except: view) }
     }
 
     func finish(with image: NSImage?) {
@@ -198,15 +194,6 @@ private final class SelectionWindow: NSWindow {
         self.setFrame(screen.frame, display: true)
         self.contentView = selectionView
         self.initialFirstResponder = selectionView
-        self.title = "Select Text"
-    }
-
-    func beginSelection() {
-        selectionView.selectDefaultRegion()
-    }
-
-    func clearSelection(except activeView: SelectionView) {
-        if selectionView !== activeView { selectionView.clearSelection() }
     }
 
     override var canBecomeKey: Bool { true }
@@ -217,39 +204,17 @@ private final class SelectionWindow: NSWindow {
 
 @MainActor
 private final class SelectionView: NSView {
-    private enum Drag {
-        case move(CGRect, CGPoint)
-        case resize(CGRect, SelectionHandle, CGPoint)
-    }
-
     private let screenshot: CGImage
     private weak var coordinator: SelectionCoordinator?
-    private var selectionRect: CGRect?
-    private var drag: Drag?
-    private let controls = NSStackView()
+    private var dragStart: NSPoint?
+    private var dragCurrent: NSPoint?
+    private var trackingArea: NSTrackingArea?
 
     init(screenshot: CGImage, coordinator: SelectionCoordinator) {
         self.screenshot = screenshot
         self.coordinator = coordinator
         super.init(frame: .zero)
-        wantsLayer = true
-
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelSelection))
-        cancel.bezelStyle = .rounded
-        let copy = NSButton(title: "Copy Text", target: self, action: #selector(finishSelection))
-        copy.bezelStyle = .rounded
-        copy.keyEquivalent = "\r"
-        copy.toolTip = "Copy text from the selected rectangle (Return)"
-        controls.orientation = .horizontal
-        controls.spacing = 8
-        controls.edgeInsets = NSEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
-        controls.addArrangedSubview(cancel)
-        controls.addArrangedSubview(copy)
-        controls.wantsLayer = true
-        controls.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-        controls.layer?.cornerRadius = 8
-        controls.isHidden = true
-        addSubview(controls)
+        self.wantsLayer = true
     }
 
     @available(*, unavailable)
@@ -258,157 +223,147 @@ private final class SelectionView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    /// Start with a small selection; the user can move and resize it before copying.
-    func selectDefaultRegion(near point: CGPoint? = nil) {
-        let size = CGSize(width: min(600, bounds.width * 0.45), height: min(300, bounds.height * 0.3))
-        let center = point ?? CGPoint(x: bounds.midX, y: bounds.midY)
-        let rect = CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2,
-                          width: size.width, height: size.height)
-        selectionRect = SelectionGeometry.moved(rect, by: .zero, within: bounds)
-        updateSelectionUI()
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .mouseEnteredAndExited, .cursorUpdate, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
     }
 
-    func clearSelection() {
-        selectionRect = nil
-        drag = nil
-        updateSelectionUI()
-    }
-
-    override func layout() {
-        super.layout()
-        positionControls()
-    }
-
-    /// Keep native buttons next to the selection, inside the visible display.
-    private func positionControls() {
-        guard let rect = selectionRect else { return }
-        let size = controls.fittingSize
-        let x = min(max(rect.maxX - size.width, bounds.minX + 8), bounds.maxX - size.width - 8)
-        let below = rect.minY - size.height - 12
-        let y = below >= bounds.minY + 8 ? below : min(rect.maxY + 12, bounds.maxY - size.height - 8)
-        controls.frame = CGRect(x: x, y: y, width: size.width, height: size.height)
-    }
-
-    private func updateSelectionUI() {
-        controls.isHidden = selectionRect == nil || drag != nil
-        positionControls()
-        needsDisplay = true
-        window?.invalidateCursorRects(for: self)
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.crosshair.set()
     }
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: .arrow)
-        guard let rect = selectionRect else { return }
-        addCursorRect(rect, cursor: .openHand)
-        for handle in SelectionHandle.allCases {
-            let cursor: NSCursor
-            switch handle {
-            case .left, .right: cursor = .resizeLeftRight
-            case .top, .bottom: cursor = .resizeUpDown
-            default: cursor = .crosshair
-            }
-            addCursorRect(hitRect(for: handle, in: rect), cursor: cursor)
-        }
-        if !controls.isHidden { addCursorRect(controls.frame, cursor: .arrow) }
+        addCursorRect(bounds, cursor: .crosshair)
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        context.draw(screenshot, in: bounds)
-        let outside = CGMutablePath()
-        outside.addRect(bounds)
-        if let rect = selectionRect { outside.addRect(rect) }
-        context.addPath(outside)
-        context.setFillColor(NSColor.black.withAlphaComponent(0.3).cgColor)
-        context.fillPath(using: .evenOdd)
-        guard let rect = selectionRect else { return }
-        context.setStrokeColor(NSColor.white.cgColor)
-        context.setLineWidth(1.5)
-        context.stroke(rect)
-        for handle in SelectionHandle.allCases {
-            let point = SelectionGeometry.position(of: handle, in: rect)
-            let knob = CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)
-            context.setFillColor(NSColor.white.cgColor)
-            context.fillEllipse(in: knob)
-            context.setStrokeColor(NSColor.black.withAlphaComponent(0.5).cgColor)
-            context.setLineWidth(1)
-            context.strokeEllipse(in: knob)
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+
+        // Frozen screen content at full brightness — no dim, the freeze itself is the cue
+        // that selection mode is active.
+        ctx.draw(screenshot, in: bounds)
+
+        // Selection rectangle outline only.
+        if let rect = currentSelectionRect(), rect.width > 0, rect.height > 0 {
+            ctx.setStrokeColor(NSColor.systemBlue.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.stroke(rect)
+
+            // Dimension label
+            let label = "\(Int(rect.width)) × \(Int(rect.height))"
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
+                .foregroundColor: NSColor.white,
+                .backgroundColor: NSColor.black.withAlphaComponent(0.55)
+            ]
+            let size = (label as NSString).size(withAttributes: attrs)
+            let labelOrigin = NSPoint(
+                x: min(rect.maxX - size.width - 6, bounds.maxX - size.width - 6),
+                y: max(rect.minY - size.height - 4, bounds.minY + 4)
+            )
+            (label as NSString).draw(at: labelOrigin, withAttributes: attrs)
         }
     }
 
-    private func hitRect(for handle: SelectionHandle, in rect: CGRect) -> CGRect {
-        let point = SelectionGeometry.position(of: handle, in: rect)
-        return CGRect(x: point.x - 10, y: point.y - 10, width: 20, height: 20)
+    private func currentSelectionRect() -> NSRect? {
+        guard let start = dragStart, let current = dragCurrent else { return nil }
+        return NSRect(
+            x: min(start.x, current.x),
+            y: min(start.y, current.y),
+            width: abs(current.x - start.x),
+            height: abs(current.y - start.y)
+        )
     }
 
-    private func boundedPoint(from event: NSEvent) -> CGPoint {
+    private func boundedPoint(from event: NSEvent) -> NSPoint {
         let point = convert(event.locationInWindow, from: nil)
-        return CGPoint(x: min(max(point.x, bounds.minX), bounds.maxX),
-                       y: min(max(point.y, bounds.minY), bounds.maxY))
+        return NSPoint(
+            x: min(max(point.x, bounds.minX), bounds.maxX),
+            y: min(max(point.y, bounds.minY), bounds.maxY)
+        )
     }
 
     override func mouseDown(with event: NSEvent) {
-        window?.makeKeyAndOrderFront(nil)
-        let point = boundedPoint(from: event)
-        if selectionRect == nil {
-            coordinator?.activateSelection(in: self)
-            selectDefaultRegion(near: point)
-        }
-        guard let rect = selectionRect else { return }
-        if let handle = SelectionHandle.allCases.first(where: { hitRect(for: $0, in: rect).contains(point) }) {
-            drag = .resize(rect, handle, point)
-        } else if rect.contains(point) {
-            drag = .move(rect, point)
-            NSCursor.closedHand.set()
-        }
-        updateSelectionUI()
+        let pt = boundedPoint(from: event)
+        dragStart = pt
+        dragCurrent = pt
+        needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let drag else { return }
-        let point = boundedPoint(from: event)
-        switch drag {
-        case let .move(rect, origin):
-            selectionRect = SelectionGeometry.moved(rect, by: CGSize(width: point.x - origin.x,
-                height: point.y - origin.y), within: bounds)
-        case let .resize(rect, handle, origin):
-            let handleOrigin = SelectionGeometry.position(of: handle, in: rect)
-            let target = CGPoint(x: handleOrigin.x + point.x - origin.x,
-                                 y: handleOrigin.y + point.y - origin.y)
-            selectionRect = SelectionGeometry.resized(rect, handle: handle, to: target, within: bounds)
-        }
-        updateSelectionUI()
+        let pt = boundedPoint(from: event)
+        dragCurrent = pt
+        needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
-        mouseDragged(with: event)
-        drag = nil
-        updateSelectionUI()
+        dragCurrent = boundedPoint(from: event)
+        needsDisplay = true
+        finishSelection()
     }
 
-    /// OCR receives only the confirmed rectangle, cropped from the in-memory snapshot.
-    @objc private func finishSelection() {
-        guard let rect = selectionRect else { return }
-        let crop = SelectionGeometry.pixelCrop(for: rect, viewBounds: bounds,
-            imageSize: CGSize(width: screenshot.width, height: screenshot.height))
-        guard !crop.isNull, let cropped = screenshot.cropping(to: crop) else {
+    private func finishSelection() {
+        guard let rect = currentSelectionRect(), rect.width > 2, rect.height > 2 else {
+            dragStart = nil
+            dragCurrent = nil
             coordinator?.finish(with: nil)
             return
         }
-        coordinator?.finish(with: NSImage(cgImage: cropped,
-            size: NSSize(width: cropped.width, height: cropped.height)))
-    }
 
-    @objc private func cancelSelection() {
-        coordinator?.finish(with: nil)
+        // View coords (origin bottom-left, points) → image coords (origin top-left, pixels).
+        let viewWidth = bounds.width
+        let viewHeight = bounds.height
+        let imageWidth = CGFloat(screenshot.width)
+        let imageHeight = CGFloat(screenshot.height)
+        let scaleX = imageWidth / viewWidth
+        let scaleY = imageHeight / viewHeight
+
+        let imageBounds = CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight)
+        let cropRect = CGRect(
+            x: rect.minX * scaleX,
+            y: (viewHeight - rect.maxY) * scaleY,
+            width: rect.width * scaleX,
+            height: rect.height * scaleY
+        )
+        .integral
+        .intersection(imageBounds)
+
+        dragStart = nil
+        dragCurrent = nil
+
+        guard !cropRect.isNull, cropRect.width > 0, cropRect.height > 0 else {
+            coordinator?.finish(with: nil)
+            return
+        }
+
+        guard let cropped = screenshot.cropping(to: cropRect) else {
+            coordinator?.finish(with: nil)
+            return
+        }
+
+        let nsImage = NSImage(
+            cgImage: cropped,
+            size: NSSize(width: cropped.width, height: cropped.height)
+        )
+        coordinator?.finish(with: nsImage)
     }
 
     override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 53: cancelSelection()
-        case 36, 76: finishSelection()
-        default: super.keyDown(with: event)
+        if event.keyCode == 53 { // ESC
+            coordinator?.finish(with: nil)
+        } else {
+            super.keyDown(with: event)
         }
     }
 }
