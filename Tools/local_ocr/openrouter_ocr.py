@@ -47,6 +47,14 @@ def api_key() -> str:
     return key
 
 
+def launch_application(root: Path, key: str) -> None:
+    """Launch through macOS so ScreenText owns its existing screen permission."""
+    app = root / ".local/DerivedData/Build/Products/Debug/ScreenText.app"
+    subprocess.run(["/usr/bin/swift", str(root / "Tools/local_ocr/LaunchApp.swift"), str(app)],
+        env=dict(os.environ, OPENROUTER_API_KEY=key), stdin=subprocess.DEVNULL,
+        capture_output=True, check=True, timeout=30)
+
+
 def start(model: str) -> None:
     """Select the cloud profile and reopen only this checkout's app."""
     root = Path(__file__).resolve().parents[2]
@@ -82,10 +90,7 @@ def start(model: str) -> None:
             time.sleep(0.1)
         else:
             raise RuntimeError("ScreenText did not quit. Quit it and run this launcher again.")
-    environment = dict(os.environ, OPENROUTER_API_KEY=key)
-    with (root / ".local/openrouter-app.log").open("w") as log:
-        subprocess.Popen([str(binary)], env=environment, stdin=subprocess.DEVNULL,
-            stdout=log, stderr=log, start_new_session=True)
+    launch_application(root, key)
     print(f"ScreenText is using {model} through OpenRouter. Press Command-Shift-2 to capture.")
 
 

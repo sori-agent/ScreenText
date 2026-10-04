@@ -56,4 +56,6 @@ Double-click `Start Qwen.command` to select `qwen/qwen3.7-flash` at `https://ope
 
 The launcher reads `OPENROUTER_API_KEY` from its environment, the key already entered in the app, or the current gcloud project's sole secret whose name contains `openrouter`, in that order. Set `SCREENTEXT_OPENROUTER_SECRET` to choose a secret when there is more than one. It preserves the user's configured key and never writes a retrieved key to preferences or files. Use the launcher again after quitting the app so it reloads the key. Double-click `Start ScreenText.command` to return to local OCR.
 
+Cloud profiles open the app through `NSWorkspace` so macOS uses ScreenText's screen permission. The key is passed in the app's environment, never in command arguments. Running the app binary directly can incorrectly attribute its screenshots to the calling terminal or agent.
+
 Screenshots are sent to OpenRouter's cloud provider. The prompt requests literal horizontal English/Japanese/Korean transcription, including furigana above its main line. An unavailable model leaves the clipboard unchanged. `Start Space Bunny.command` remains a separate temporary free profile; that model requires reasoning and OpenRouter lists it as going away October 5, 2026.
