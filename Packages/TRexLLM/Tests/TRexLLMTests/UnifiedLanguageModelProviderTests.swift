@@ -74,6 +74,20 @@ final class UnifiedLanguageModelProviderTests: XCTestCase {
         XCTAssertNil(body?["reasoning"])
     }
 
+    func testQwenFlashOCRAllowsItsPublishedRatesWithoutReasoningOrModelFallback() async throws {
+        let recorder = TranscriptRecorder()
+        let provider = UnifiedLanguageModelProvider(model: RecordingLanguageModel(recorder: recorder),
+            endpoint: "https://openrouter.ai/api/v1", modelName: "qwen/qwen3.7-flash")
+        _ = try await provider.performOCR(image: makeTestImage(), prompt: nil, model: "qwen/qwen3.7-flash")
+        let summaries = await recorder.summaries
+        let options = try XCTUnwrap(summaries.first?.options)
+        XCTAssertEqual(options.temperature, 0)
+        let body = options[custom: OpenAILanguageModel.self]?.extraBody
+        XCTAssertEqual(body?["provider"], .object(["max_price": .object(["prompt": .double(0.03), "completion": .double(0.13)])]))
+        XCTAssertEqual(body?["reasoning"], .object(["enabled": .bool(false)]))
+        XCTAssertNil(body?["models"])
+    }
+
     func testEndpointValidationRequiresAbsoluteHTTPURL() {
         XCTAssertEqual(
             UnifiedLanguageModelProvider.validatedEndpoint("http://localhost:11434/v1")?.absoluteString,

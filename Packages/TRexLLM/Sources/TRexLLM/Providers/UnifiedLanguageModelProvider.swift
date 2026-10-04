@@ -18,7 +18,7 @@ public final class UnifiedLanguageModelProvider: LLMProvider, @unchecked Sendabl
 
     /// Initialize with provider type
     public init(providerType: LLMProviderType, apiKey: String?, endpoint: String?, modelName: String) throws {
-        self.ocrOptions = Self.ocrGenerationOptions(endpoint: endpoint)
+        self.ocrOptions = Self.ocrGenerationOptions(endpoint: endpoint, modelName: modelName)
         switch providerType {
         case .openai:
             guard let key = apiKey, !key.isEmpty else {
@@ -95,20 +95,25 @@ public final class UnifiedLanguageModelProvider: LLMProvider, @unchecked Sendabl
         }
     }
 
-    init(model: any LanguageModel, endpoint: String? = nil) {
+    init(model: any LanguageModel, endpoint: String? = nil, modelName: String = "stealth/space-bunny-alpha") {
         self.name = "Test"
         self.supportedModels = []
         self.model = model
-        self.ocrOptions = Self.ocrGenerationOptions(endpoint: endpoint)
+        self.ocrOptions = Self.ocrGenerationOptions(endpoint: endpoint, modelName: modelName)
     }
 
-    /// Keep the OpenRouter trial free; Space Bunny requires its default reasoning.
-    private static func ocrGenerationOptions(endpoint: String?) -> GenerationOptions {
+    /// Allow only the selected Qwen trial's rates; other OpenRouter models stay free.
+    private static func ocrGenerationOptions(endpoint: String?, modelName: String) -> GenerationOptions {
         guard let endpoint, URL(string: endpoint)?.host == "openrouter.ai" else { return GenerationOptions() }
         var options = GenerationOptions(temperature: 0)
-        options[custom: OpenAILanguageModel.self] = .init(extraBody: [
+        var body: [String: JSONValue] = [
             "provider": .object(["max_price": .object(["prompt": .int(0), "completion": .int(0)])])
-        ])
+        ]
+        if modelName == "qwen/qwen3.7-flash" {
+            body["provider"] = .object(["max_price": .object(["prompt": .double(0.03), "completion": .double(0.13)])])
+            body["reasoning"] = .object(["enabled": .bool(false)])
+        }
+        options[custom: OpenAILanguageModel.self] = .init(extraBody: body)
         return options
     }
 
