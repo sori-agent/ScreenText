@@ -61,6 +61,19 @@ final class UnifiedLanguageModelProviderTests: XCTestCase {
         XCTAssertEqual(summaries.map(\.imageCount), [0, 0])
     }
 
+    func testOpenRouterOCRRequiresFreeProvidersAndAllowsMandatoryReasoning() async throws {
+        let recorder = TranscriptRecorder()
+        let provider = UnifiedLanguageModelProvider(model: RecordingLanguageModel(recorder: recorder),
+            endpoint: "https://openrouter.ai/api/v1")
+        _ = try await provider.performOCR(image: makeTestImage(), prompt: nil, model: "stealth/space-bunny-alpha")
+        let summaries = await recorder.summaries
+        let options = try XCTUnwrap(summaries.first?.options)
+        XCTAssertEqual(options.temperature, 0)
+        let body = options[custom: OpenAILanguageModel.self]?.extraBody
+        XCTAssertEqual(body?["provider"], .object(["max_price": .object(["prompt": .int(0), "completion": .int(0)])]))
+        XCTAssertNil(body?["reasoning"])
+    }
+
     func testEndpointValidationRequiresAbsoluteHTTPURL() {
         XCTAssertEqual(
             UnifiedLanguageModelProvider.validatedEndpoint("http://localhost:11434/v1")?.absoluteString,
@@ -91,11 +104,12 @@ private actor TranscriptRecorder {
     struct Summary: Sendable {
         let entryCount: Int
         let imageCount: Int
+        let options: GenerationOptions
     }
 
     private(set) var summaries: [Summary] = []
 
-    func record(_ transcript: Transcript) {
+    func record(_ transcript: Transcript, options: GenerationOptions) {
         let imageCount = transcript.reduce(into: 0) { count, entry in
             guard case .prompt(let prompt) = entry else { return }
             count += prompt.segments.filter {
@@ -103,7 +117,7 @@ private actor TranscriptRecorder {
                 return false
             }.count
         }
-        summaries.append(Summary(entryCount: transcript.count, imageCount: imageCount))
+        summaries.append(Summary(entryCount: transcript.count, imageCount: imageCount, options: options))
     }
 }
 
@@ -119,7 +133,7 @@ private struct RecordingLanguageModel: LanguageModel {
         includeSchemaInPrompt: Bool,
         options: GenerationOptions
     ) async throws -> LanguageModelSession.Response<Content> where Content: Generable {
-        await recorder.record(session.transcript)
+        await recorder.record(session.transcript, options: options)
         let content = "recognized text"
         return LanguageModelSession.Response(
             content: content as! Content,

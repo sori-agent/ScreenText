@@ -49,3 +49,9 @@ The local server accepts PNG/JPEG bytes, never fetches image URLs, binds only to
 `benchmark.py` accepts a private JSON manifest with `name`, absolute `image` path, optional `crop`, `scale`, and `expected` text. Put manifests and results under ignored `.local/`; never commit user screenshots or extracted textbook content. Pass `--detector .local/detect-lines` to use the same region pipeline as the server.
 
 TRex and MLX-VLM are MIT licensed; PaddleOCR-VL-1.6 is Apache 2.0 licensed. Original upstream license files remain in this fork.
+
+## Temporary OpenRouter trial
+
+Double-click `Start Space Bunny.command` to select `stealth/space-bunny-alpha` at `https://openrouter.ai/api/v1`. The launcher reads `OPENROUTER_API_KEY` from its environment, or reads the current gcloud project's sole secret whose name contains `openrouter`. Set `SCREENTEXT_OPENROUTER_SECRET` to choose a secret when there is more than one. The key stays in process memory; it is never written to app preferences or files. The local model is stopped and is not loaded in this profile.
+
+Screenshots are sent to OpenRouter's cloud provider. The prompt requests literal horizontal English/Japanese/Korean transcription, including furigana above its main line. Requests require zero-priced providers; Space Bunny requires reasoning to remain enabled. An unavailable model leaves the clipboard unchanged. OpenRouter lists Space Bunny as going away October 5, 2026. Use this launcher again after quitting the app so it reloads the key. Double-click `Start ScreenText.command` to return to local OCR.

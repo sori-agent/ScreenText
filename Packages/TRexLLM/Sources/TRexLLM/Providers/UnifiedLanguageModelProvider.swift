@@ -14,9 +14,11 @@ public final class UnifiedLanguageModelProvider: LLMProvider, @unchecked Sendabl
     public let supportedModels: [String]
 
     private let model: any LanguageModel
+    private let ocrOptions: GenerationOptions
 
     /// Initialize with provider type
     public init(providerType: LLMProviderType, apiKey: String?, endpoint: String?, modelName: String) throws {
+        self.ocrOptions = Self.ocrGenerationOptions(endpoint: endpoint)
         switch providerType {
         case .openai:
             guard let key = apiKey, !key.isEmpty else {
@@ -93,10 +95,21 @@ public final class UnifiedLanguageModelProvider: LLMProvider, @unchecked Sendabl
         }
     }
 
-    init(model: any LanguageModel) {
+    init(model: any LanguageModel, endpoint: String? = nil) {
         self.name = "Test"
         self.supportedModels = []
         self.model = model
+        self.ocrOptions = Self.ocrGenerationOptions(endpoint: endpoint)
+    }
+
+    /// Keep the OpenRouter trial free; Space Bunny requires its default reasoning.
+    private static func ocrGenerationOptions(endpoint: String?) -> GenerationOptions {
+        guard let endpoint, URL(string: endpoint)?.host == "openrouter.ai" else { return GenerationOptions() }
+        var options = GenerationOptions(temperature: 0)
+        options[custom: OpenAILanguageModel.self] = .init(extraBody: [
+            "provider": .object(["max_price": .object(["prompt": .int(0), "completion": .int(0)])])
+        ])
+        return options
     }
 
     static func validatedEndpoint(_ value: String) -> URL? {
@@ -124,7 +137,8 @@ public final class UnifiedLanguageModelProvider: LLMProvider, @unchecked Sendabl
         let ocrSession = LanguageModelSession(model: self.model)
         let response = try await ocrSession.respond(
             to: request.prompt,
-            image: imageSegment
+            image: imageSegment,
+            options: ocrOptions
         )
         return response.content
     }

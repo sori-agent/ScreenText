@@ -31,6 +31,7 @@ public struct LLMConfiguration: Codable, Sendable {
     // Environment variable keys
     public static let openAIKeyEnvVar = "OPENAI_API_KEY"
     public static let anthropicKeyEnvVar = "ANTHROPIC_API_KEY"
+    public static let openRouterKeyEnvVar = "OPENROUTER_API_KEY"
 
     public init(
         ocrProvider: LLMProviderType = .openai,
@@ -65,7 +66,7 @@ public struct LLMConfiguration: Codable, Sendable {
     }
 
     /// Get API key for OCR provider from configuration or environment
-    public func resolveOCRAPIKey() -> String? {
+    public func resolveOCRAPIKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         if let key = ocrAPIKey, !key.isEmpty {
             return key
         }
@@ -73,11 +74,16 @@ public struct LLMConfiguration: Codable, Sendable {
         // Try environment variables
         switch ocrProvider {
         case .openai:
-            return ProcessInfo.processInfo.environment[Self.openAIKeyEnvVar]
+            return environment[Self.openAIKeyEnvVar]
         case .anthropic:
-            return ProcessInfo.processInfo.environment[Self.anthropicKeyEnvVar]
-        case .custom, .apple:
-            return nil // Custom endpoints and Apple don't need API keys
+            return environment[Self.anthropicKeyEnvVar]
+        case .custom:
+            // Scope the credential to OpenRouter so it never reaches a local or unrelated server.
+            guard let endpoint = ocrCustomEndpoint, let url = URL(string: endpoint),
+                  url.scheme == "https", url.host == "openrouter.ai" else { return nil }
+            return environment[Self.openRouterKeyEnvVar]
+        case .apple:
+            return nil
         }
     }
 
