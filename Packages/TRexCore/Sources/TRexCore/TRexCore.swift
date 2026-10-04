@@ -6,8 +6,8 @@ import TRexLLM
 
 /// Bundle identifiers for TRex apps
 enum BundleIdentifiers {
-    static let gui = "com.ameba.TRex"
-    static let cli = "com.ameba.TRex.cli"
+    static let gui = "com.sori.ScreenText"
+    static let cli = "com.sori.ScreenText.cli"
 
     /// Check if current process is the CLI tool
     static var isCLI: Bool {
@@ -670,14 +670,7 @@ public class TRex: NSObject {
 
         let useTesseract = preferences.tesseractEnabled && !preferences.tesseractLanguages.isEmpty
 
-        // If automatic detection is enabled and we're not using Tesseract, use Vision directly
-        if preferences.automaticLanguageDetection && !useTesseract && ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 13 {
-            logger.info("🛤️ OCR Path: Vision with AUTOMATIC language detection")
-            let result = await performVisionOCR(cgImage: cgImage, notifyOnFailure: notifyOnFailure)
-            return await recoverEmptyOCRResult(result, cgImage: cgImage, languages: languages, attemptedEngineID: "vision")
-        }
-
-        // If LLM OCR is enabled and available, use it
+        // An explicitly selected model takes precedence over Vision language settings.
         if preferences.llmEnabled && preferences.llmEnableOCR, let llmEngine = llmEngine {
             logger.info("🛤️ OCR Path: Using LLM OCR engine")
             let processingState = llmProcessingState
@@ -685,6 +678,13 @@ public class TRex: NSObject {
             let result = await performOCR(with: llmEngine, cgImage: cgImage, languages: languages, notifyOnFailure: notifyOnFailure)
             processingState.set(false)
             return await recoverEmptyOCRResult(result, cgImage: cgImage, languages: languages, attemptedEngineID: llmEngine.identifier)
+        }
+
+        // Automatic language detection applies to the built-in Vision engine.
+        if preferences.automaticLanguageDetection && !useTesseract && ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 13 {
+            logger.info("🛤️ OCR Path: Vision with AUTOMATIC language detection")
+            let result = await performVisionOCR(cgImage: cgImage, notifyOnFailure: notifyOnFailure)
+            return await recoverEmptyOCRResult(result, cgImage: cgImage, languages: languages, attemptedEngineID: "vision")
         }
 
         // If Tesseract is disabled, only use Vision
@@ -782,8 +782,9 @@ public class TRex: NSObject {
     private func performOCR(with engine: OCREngine, cgImage: CGImage, languages: [String], notifyOnFailure: Bool = true) async -> OCRResult? {
         logger.info("🔧 performOCR called with engine: \(engine.name, privacy: .public)")
         do {
-            // Use timeout utility for 5 second timeout
-            var result = try await withTimeout(seconds: 5.0) {
+            // Local models need time for a cold Metal compile and a full page.
+            let timeout: TimeInterval = engine.identifier == "llm" ? 90 : 5
+            var result = try await withTimeout(seconds: timeout) {
                 try await engine.recognizeText(
                     in: cgImage,
                     languages: languages,
@@ -806,10 +807,18 @@ public class TRex: NSObject {
 
             return result
         } catch TimeoutError.timedOut {
-            logger.error("⏱️ OCR timed out after 5 seconds, falling back to Vision")
+            if engine.identifier == "llm", !preferences.llmFallbackToBuiltIn {
+                if notifyOnFailure { notifyOCRFailure(TimeoutError.timedOut) }
+                return nil
+            }
+            logger.error("⏱️ OCR timed out, falling back to Vision")
             return await performVisionOCR(cgImage: cgImage, excludingEngineIdentifier: engine.identifier, notifyOnFailure: notifyOnFailure)
         } catch {
             logger.error("❌ \(engine.name, privacy: .public) failed with error: \(error.localizedDescription, privacy: .public)")
+            if engine.identifier == "llm", !preferences.llmFallbackToBuiltIn {
+                if notifyOnFailure { notifyOCRFailure(error) }
+                return nil
+            }
             logger.error("  → Falling back to Vision")
             return await performVisionOCR(cgImage: cgImage, excludingEngineIdentifier: engine.identifier, notifyOnFailure: notifyOnFailure)
         }

@@ -13,12 +13,10 @@ public final class LLMOCREngine: @unchecked Sendable, OCREngine {
     private let logger = Logger(subsystem: "com.ameba.TRex", category: "LLMOCREngine")
     private var provider: LLMProvider?
     private var config: LLMConfiguration
-    private let networkChecker: NetworkChecker
     private let fallbackEngine: OCREngine?
 
     public init(config: LLMConfiguration, fallbackEngine: OCREngine? = nil) {
         self.config = config
-        self.networkChecker = NetworkChecker()
         self.fallbackEngine = fallbackEngine
 
         // Create unified provider
@@ -54,13 +52,7 @@ public final class LLMOCREngine: @unchecked Sendable, OCREngine {
             return try await fallbackIfNeeded(image: image, languages: languages, recognitionLevel: recognitionLevel, error: LLMError.invalidAPIKey)
         }
 
-        // Check network connectivity
-        guard networkChecker.isNetworkAvailable() else {
-            logger.warning("⚠️ Network unavailable, attempting fallback")
-            return try await fallbackIfNeeded(image: image, languages: languages, recognitionLevel: recognitionLevel, error: LLMError.networkUnavailable)
-        }
-
-        // Check provider connectivity
+        // Loopback needs no internet connection; the request determines availability.
         let canConnect = await provider.checkConnectivity()
         guard canConnect else {
             logger.warning("⚠️ Cannot connect to LLM provider, attempting fallback")
@@ -82,7 +74,7 @@ public final class LLMOCREngine: @unchecked Sendable, OCREngine {
 
             return OCRResult(
                 text: text,
-                confidence: 0.95, // LLMs typically have high confidence
+                confidence: 0, // This model supplies no calibrated confidence score.
                 recognizedLanguages: languages,
                 engineName: "LLM Vision (\(config.ocrProvider.rawValue))",
                 recognitionLevel: "high-accuracy"

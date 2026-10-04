@@ -5,15 +5,18 @@ import XCTest
 @testable import TRexLLM
 
 final class UnifiedLanguageModelProviderTests: XCTestCase {
-    func testPrepareOCRRequestUsesDefaultPromptAndJPEG() throws {
+    func testPrepareOCRRequestPreservesOriginalPixelsAsPNG() throws {
         let request = try UnifiedLanguageModelProvider.prepareOCRRequest(
-            image: makeTestImage(),
+            image: makeTestImage(size: NSSize(width: 2200, height: 80)),
             prompt: nil
         )
 
         XCTAssertEqual(request.prompt, PromptTemplates.defaultOCRPrompt)
-        XCTAssertEqual(request.mimeType, "image/jpeg")
-        XCTAssertEqual(Array(request.imageData.prefix(3)), [0xFF, 0xD8, 0xFF])
+        XCTAssertEqual(request.mimeType, "image/png")
+        XCTAssertEqual(Array(request.imageData.prefix(8)), [137, 80, 78, 71, 13, 10, 26, 10])
+        let decoded = try XCTUnwrap(NSBitmapImageRep(data: request.imageData))
+        XCTAssertEqual(decoded.pixelsWide, 2200)
+        XCTAssertEqual(decoded.pixelsHigh, 80)
     }
 
     func testPrepareOCRRequestUsesCustomPrompt() throws {
@@ -72,14 +75,15 @@ final class UnifiedLanguageModelProviderTests: XCTestCase {
         XCTAssertNil(UnifiedLanguageModelProvider.validatedEndpoint("http://has space/v1"))
     }
 
-    private func makeTestImage() -> NSImage {
-        let size = NSSize(width: 120, height: 80)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        NSColor.white.setFill()
-        NSRect(origin: .zero, size: size).fill()
-        image.unlockFocus()
-        return image
+    private func makeTestImage(size: NSSize = NSSize(width: 120, height: 80)) -> NSImage {
+        // A bitmap gives fixed pixel dimensions on both Retina and ordinary displays.
+        let context = CGContext(data: nil, width: Int(size.width), height: Int(size.height),
+                                bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(CGRect(origin: .zero, size: size))
+        return NSImage(cgImage: context.makeImage()!, size: size)
     }
 }
 

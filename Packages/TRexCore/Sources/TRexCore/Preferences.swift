@@ -4,7 +4,7 @@ import SwiftUI
 
 public class Preferences: ObservableObject {
     public nonisolated(unsafe) static let shared = Preferences()
-    static let suiteName = "X93LWC49WV.TRex.preferences"
+    static let suiteName = "com.sori.ScreenText.preferences"
     nonisolated(unsafe) static let userDefaults = UserDefaults(suiteName: suiteName)!
 
     enum PreferencesKeys: String {
@@ -443,7 +443,7 @@ public class Preferences: ObservableObject {
         llmOCRPrompt = Preferences.getValue(key: .LLMOCRPrompt) as? String ?? "Extract all visible text from this image. Preserve the layout and formatting as much as possible. Return only the extracted text without any additional commentary."
         llmPostProcessPrompt = Preferences.getValue(key: .LLMPostProcessPrompt) as? String ?? "You are given OCR output that may contain errors. Please:\n1. Correct any obvious spelling or recognition errors\n2. Fix formatting issues (spacing, line breaks)\n3. Preserve the original structure and meaning\n4. Return only the corrected text without explanations\n\nOCR Text:\n{text}"
         llmFallbackToBuiltIn = Preferences.getValue(key: .LLMFallbackToBuiltIn) as? Bool ?? true
-        captureHistoryEnabled = Preferences.getValue(key: .CaptureHistoryEnabled) as? Bool ?? true
+        captureHistoryEnabled = Preferences.getValue(key: .CaptureHistoryEnabled) as? Bool ?? false
         let storedMaxEntries = Preferences.getValue(key: .CaptureHistoryMaxEntries) as? Int ?? 100
         captureHistoryMaxEntries = Self.clampHistoryEntries(storedMaxEntries)
         tableDetectionEnabled = Preferences.getValue(key: .TableDetectionEnabled) as? Bool ?? false

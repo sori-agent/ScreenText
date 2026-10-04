@@ -90,6 +90,12 @@ fastlane/test_output
 iOSInjectionProject/
 .DS_Store
 
+# Local OCR runtime, model weights, and private evaluation material
+.venv/
+.local/
+__pycache__/
+*.pyc
+
 # CLI cache artifacts
 .cli-cache/
 

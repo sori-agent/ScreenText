@@ -25,7 +25,7 @@
 			<string></string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>trex</string>
+				<string>screentext</string>
 			</array>
 		</dict>
 	</array>
@@ -36,7 +36,7 @@
 	<key>SUPublicEDKey</key>
 	<string>c1vnuzkyrl2y6GNfNk/N91wC0S2w0PYxfbBonj+QrT0=</string>
 	<key>SUEnableAutomaticChecks</key>
-	<true/>
+	<false/>
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>LSMinimumSystemVersion</key>

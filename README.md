@@ -1,3 +1,7 @@
+# ScreenText local OCR trial
+
+This fork runs a free local PaddleOCR model on Apple Silicon. See [setup, usage, and measured limitations](Tools/local_ocr/README.md). The original TRex documentation follows below.
+
 [![GitHub license](https://img.shields.io/github/license/amebalabs/TRex.svg)](https://github.com/amebalabs/TRex/blob/master/LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/amebalabs/TRex)](https://github.com/amebalabs/TRex/releases/latest)
 [![Github all releases](https://img.shields.io/github/downloads/amebalabs/TRex/total.svg)](https://github.com/amebalabs/TRex/releases/)

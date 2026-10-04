@@ -25,7 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         NSApp.servicesProvider = self
 
         if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1 {
-            NSWorkspace.shared.open(URL(string: "trex://showPreferences")!)
+            NSWorkspace.shared.open(URL(string: "screentext://showPreferences")!)
             NSApp.terminate(nil)
         }
         

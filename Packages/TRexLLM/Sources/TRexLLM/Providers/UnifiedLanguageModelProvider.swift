@@ -138,10 +138,15 @@ public final class UnifiedLanguageModelProvider: LLMProvider, @unchecked Sendabl
             resolvedPrompt = PromptTemplates.defaultOCRPrompt
         }
 
+        // Local OCR needs the original pixels, especially for small furigana.
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let png = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:]) else {
+            throw LLMError.imageProcessingFailed
+        }
         return PreparedOCRRequest(
             prompt: resolvedPrompt,
-            imageData: try ImagePreprocessor().preprocess(image),
-            mimeType: "image/jpeg"
+            imageData: png,
+            mimeType: "image/png"
         )
     }
 

@@ -33,8 +33,8 @@ public struct CaptureHistoryEntry: Codable, Identifiable, Sendable {
 
 /// Manages capture history persistence and thumbnail storage.
 ///
-/// History is stored as JSON in `~/Library/Application Support/TRex/History/history.json`.
-/// Thumbnails are stored as JPEG files in `~/Library/Application Support/TRex/History/thumbnails/`.
+/// History is stored as JSON in `~/Library/Application Support/ScreenText/History/history.json`.
+/// Thumbnails are stored as JPEG files in `~/Library/Application Support/ScreenText/History/thumbnails/`.
 @MainActor
 public final class CaptureHistoryStore: ObservableObject {
     @Published public var entries: [CaptureHistoryEntry] = []
@@ -49,7 +49,7 @@ public final class CaptureHistoryStore: ObservableObject {
     ///   Tests can supply an isolated temporary root to avoid touching user history.
     public init(storageRoot: URL? = nil) {
         let appSupport = storageRoot ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let historyDir = appSupport.appendingPathComponent("TRex/History", isDirectory: true)
+        let historyDir = appSupport.appendingPathComponent("ScreenText/History", isDirectory: true)
         self.historyDirectoryURL = historyDir
         self.thumbnailsDirectoryURL = historyDir.appendingPathComponent("thumbnails", isDirectory: true)
         self.historyFileURL = historyDir.appendingPathComponent("history.json")
