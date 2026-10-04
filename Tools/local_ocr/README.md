@@ -19,6 +19,8 @@ Rebuilding an ad-hoc signed app can leave a stale Screen Recording entry that lo
 
 The launcher selects the local endpoint at `127.0.0.1:18871`, disables capture history and model post-processing, preserves line breaks, and uses macOS's native region picker. The GUI uses a normal preferences suite so the launcher can configure the local build without an Apple developer app group.
 
+Successful GUI captures play macOS's short Pop sound after the text has been written to the system clipboard. The existing **Play Sounds** setting controls both the capture sound and this ready sound. Cancelled captures and failed clipboard writes do not play the ready sound.
+
 ```sh
 Tools/local_ocr/stop.sh
 ```

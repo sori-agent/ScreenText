@@ -173,17 +173,21 @@ public class TRex: NSObject {
     /// Sends recognized text to the clipboard and, for CLI invocations, to stdout.
     /// Standard output is emitted regardless of clipboard success so headless or
     /// clipboard-restricted runs still receive the recognized text.
+    /// GUI captures play their ready sound only after a successful clipboard write.
     /// Returns whether the clipboard write succeeded.
     @MainActor
     static func emitCaptureOutput(
         _ text: String,
         isCLI: Bool,
         writeToClipboard: @MainActor (String) -> Bool,
-        printLine: @MainActor (String) -> Void
+        printLine: @MainActor (String) -> Void,
+        playReadySound: @MainActor () -> Void = {}
     ) -> Bool {
         let wroteToClipboard = writeToClipboard(text)
         if isCLI {
             printLine(text)
+        } else if wroteToClipboard {
+            playReadySound()
         }
         return wroteToClipboard
     }
@@ -1026,7 +1030,13 @@ public class TRex: NSObject {
                 text,
                 isCLI: BundleIdentifiers.isCLI,
                 writeToClipboard: { PasteboardWriter.replaceString($0) },
-                printLine: { print($0) }
+                printLine: { print($0) },
+                playReadySound: {
+                    guard self.preferences.captureSound else { return }
+                    if NSSound(named: NSSound.Name("Pop"))?.play() != true {
+                        self.logger.warning("Failed to play clipboard-ready sound")
+                    }
+                }
             )
             if !wroteToClipboard {
                 logger.error("❌ Failed to write OCR text to the clipboard")
